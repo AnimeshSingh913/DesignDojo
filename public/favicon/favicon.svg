@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#F6F2E1"/>
+  <!-- Torii gate -->
+  <path d="M52 104 Q256 150 460 104 L448 146 Q256 186 64 146 Z" fill="#354259"/>
+  <rect x="112" y="196" width="288" height="28" rx="8" fill="#354259"/>
+  <rect x="236" y="164" width="40" height="36" rx="6" fill="#354259"/>
+  <rect x="144" y="156" width="40" height="268" rx="10" fill="#354259"/>
+  <rect x="328" y="156" width="40" height="268" rx="10" fill="#354259"/>
+  <!-- System graph inside the gate -->
+  <path d="M184 316 H232 M280 316 H328 M256 340 V384" stroke="#354259" stroke-width="10" stroke-linecap="round" stroke-dasharray="2 16"/>
+  <rect x="226" y="286" width="60" height="60" rx="14" fill="#C2DED1" stroke="#354259" stroke-width="10"/>
+  <rect x="234" y="384" width="44" height="44" rx="10" fill="#8FB8A6" stroke="#354259" stroke-width="10"/>
+</svg>

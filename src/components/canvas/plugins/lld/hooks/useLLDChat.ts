@@ -1,0 +1,123 @@
+import { useState, useRef, useEffect } from 'react';
+import { ChatMessage } from '@/services/ai/types';
+import { ASTEngine } from '../ast/ASTEngine';
+import { preprocessAST } from '@/services/ai/utils/astPreprocessor';
+import { useLLDWorkspace } from '../context/LLDWorkspaceContext';
+
+export function useLLDChat(excalidrawAPI: any, diagramType: string, questionId?: string) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const { loadedHistory } = useLLDWorkspace();
+
+  const storageKey = questionId 
+    ? `designdojo_chat_${questionId}_${diagramType}` 
+    : `designdojo_latest_chat_${diagramType}`;
+
+  // Restore from loadedHistory
+  useEffect(() => {
+    if (loadedHistory && loadedHistory.chatHistory) {
+      setMessages(loadedHistory.chatHistory);
+      setChatError(null);
+    }
+  }, [loadedHistory]);
+
+  useEffect(() => {
+    if (!loadedHistory) {
+      setMessages([]);
+    }
+    // Removed auto-loading from localStorage
+  }, [storageKey, loadedHistory]);
+
+  // Removed saving chat history to local storage to prevent reload caching issues
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  const clearChat = () => {
+    setMessages([]);
+    localStorage.removeItem(storageKey);
+  };
+
+  const sendMessage = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!input.trim() || !excalidrawAPI) return;
+
+    const userMessage: ChatMessage = { role: 'user', content: input.trim() };
+    const newMessages = [...messages, userMessage];
+    
+    setMessages(newMessages);
+    setInput('');
+    setIsChatLoading(true);
+    setChatError(null);
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    try {
+      // 1. Get elements from Excalidraw
+      const elements = excalidrawAPI.getSceneElements();
+      const activeElements = elements.filter((el: any) => !el.isDeleted);
+      
+      if (activeElements.length === 0) {
+        setChatError("Please draw your diagram first. You haven't drawn anything yet.");
+        setIsChatLoading(false);
+        // Remove the user's message from UI since it failed
+        setMessages(messages);
+        return;
+      }
+
+      // 2. Extract AST
+      const rawAST = ASTEngine.parseFromCanvas(elements);
+
+      // 3. Preprocess and optimize AST
+      const optimizedAST = preprocessAST(rawAST, diagramType);
+
+      // 4. Send to backend API
+      const response = await fetch('/api/ai/lld-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          messages: newMessages, 
+          ast: optimizedAST, 
+          diagramType 
+        }),
+        signal: abortControllerRef.current.signal
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setChatError(result.message || result.error || 'Chat request failed.');
+        return;
+      }
+
+      setMessages(prev => [...prev, { role: 'assistant', content: result.data }]);
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      setChatError(err.message || 'An unexpected error occurred during chat.');
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  return {
+    messages,
+    input,
+    setInput,
+    isChatLoading,
+    chatError,
+    sendMessage,
+    clearChat
+  };
+}
